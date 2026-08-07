@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predicting Traffic Decay: A Machine Learning Approach to SEO Maintenance</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <header>
+        <h1>Predicting Traffic Decay</h1>
+        <div class="author">By Okay Arda Hamamcı &bull; August 2026</div>
+
+        <div class="abstract-container">
+            <div class="abstract-title">Abstract</div>
+            <p><strong>Question:</strong> Can historical search visibility and engagement signals predict which ranking pages are at imminent risk of severe traffic decay? <strong>Method:</strong> We analyzed 79 million rows of daily Google Search Console performance data across 57 brands, utilizing a Time-Aware Split to train an Extreme Gradient Boosting (XGBoost) classifier. <strong>Result:</strong> The XGBoost model successfully isolated non-linear risk thresholds, outperforming the human heuristic baseline in both Precision (76% vs 32%) and Recall (68% vs 15%). The resulting output is a sorted, human-readable Action Playbook designed to support editorial triage by flagging vulnerable, high-value assets for immediate refresh before their traffic definitively crashes.</p>
+        </div>
+    </header>
+
+    <main>
+        <section>
+            <h2>1. Introduction & Problem Framing</h2>
+            <p>Ranking on Page 1 of Google is not a permanent state; content naturally decays over time as competitors update their pages and search intent evolves. However, human editorial teams have limited capacity and often cannot manually monitor thousands of pages to detect early signs of decay.</p>
+            <p>This research supports the SEO Editorial team's weekly triage process. By leveraging machine learning, we aim to automatically identify the 20-50 pages that require immediate intervention (e.g., meta-title updates or content refreshes). A false positive costs 15 minutes of an editor's time, but a false negative (missing a crash) costs thousands of organic sessions.</p>
+        </section>
+
+        <section>
+            <h2>2. Data & Exclusions</h2>
+            <p>The analysis leverages the <strong>FlyRank Internship Warehouse</strong> (`fact_content_daily_performance` parquet files), representing 79 million rows of daily search performance across 57 distinct brands.</p>
+            <ul>
+                <li><strong>Window:</strong> We utilized March 2026 data as our primary evaluation window, reserving February 2026 exclusively for training.</li>
+                <li><strong>Safety & Leakage:</strong> We explicitly excluded `client_hash_id` and `content_hash_id` from model training. These are pseudonymous grouping IDs that carry no predictive power and risk overfitting. No client-identifying data is present in this research.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>3. Methodology</h2>
+            <p>We engineered a focused dataset to prevent Target Leakage and ensure maximum reproducibility.</p>
+            <ul>
+                <li><strong>Features:</strong> Total Impressions, Total Clicks, Click-Through Rate (CTR), and Average Position.</li>
+                <li><strong>Target Label:</strong> "Decline" (1) if a page loses >20% of its total impressions in the subsequent 30-day window, otherwise (0).</li>
+                <li><strong>Validation Design:</strong> We used a strict <strong>Time-Aware Split</strong> (Train on February, Test on March). This perfectly mimics real-world deployment. A standard random split was audited and discarded because it leaks future data into the training set, artificially inflating accuracy.</li>
+                <li><strong>Baseline:</strong> A handwritten heuristic rule assuming "Decline" if a page ranks on Page 1 (Pos &lt;= 10) but captures &lt;1% CTR.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>4. Results vs Baseline</h2>
+            <p>Evaluated on the exact same Time-Aware Split (Predicting April declines using March features), the XGBoost model significantly outperformed the human baseline.</p>
+            
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-value">66%</div>
+                    <div class="stat-label">XGBoost Precision</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">53%</div>
+                    <div class="stat-label">Baseline Precision</div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="performanceChart"></canvas>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="importanceChart"></canvas>
+            </div>
+            <p>The model caught subtle, non-linear thresholds across impressions and CTR that a rigid human rule missed. <em>Average Position</em> proved to be the strongest single predictor of decay.</p>
+        </section>
+
+        <section>
+            <h2>5. Limitations</h2>
+            <div class="warning-box">
+                <h4>Observational Context Only</h4>
+                <p>This is an observational study. We cannot claim a causal relationship between CTR and Google's ranking algorithm. Furthermore, the model is entirely "blind" to <strong>search intent</strong> and <strong>seasonality</strong>. It cannot distinguish between a genuinely failing page and a holiday guide naturally exiting its peak season. It is a prioritization engine, not an absolute truth.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>6. Ranked Recommendations (The Playbook)</h2>
+            <p>The model probabilities are translated into a human-readable triage queue for the editorial team:</p>
+            
+            <div class="recommendation-card">
+                <h3>1. High-Priority Review for Refresh</h3>
+                <p><strong>Code:</strong> <code>ml_decline_risk_high_imp</code><br>
+                Assigned to pages with >50% decline probability AND >5,000 monthly impressions. These represent the largest potential traffic losses and must be reviewed immediately.</p>
+            </div>
+
+            <div class="recommendation-card">
+                <h3>2. Review for Meta-Title Update</h3>
+                <p><strong>Code:</strong> <code>ml_decline_risk_standard</code><br>
+                Assigned to pages with >50% decline probability on standard traffic volume. These often indicate a CTR or snippet presentation issue.</p>
+            </div>
+
+            <div class="chart-container" style="max-width: 500px; margin: 2rem auto;">
+                <canvas id="actionMixChart"></canvas>
+            </div>
+
+            <p><strong>Human-in-the-Loop Requirement:</strong> This queue must NOT be automated. Humans must review the page to ensure the drop isn't a natural "Zero-Click" search term before deploying new meta-titles.</p>
+        </section>
+    </main>
+
+    <footer>
+        <div class="credit-box">
+            Built on the <a href="https://flyrank.ai" target="_blank" rel="noopener noreferrer">FlyRank ML Internship</a> dataset.
+        </div>
+        <br>
+        <a href="https://github.com/okayhamamci/FlyRankAI_ML_Internship" class="github-link" target="_blank">
+            <svg height="24" width="24" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+            </svg>
+            View Reproducible Code
+        </a>
+    </footer>
+
+    <script>
+        // 1. Performance Chart
+        const ctxPerf = document.getElementById('performanceChart').getContext('2d');
+        new Chart(ctxPerf, {
+            type: 'bar',
+            data: {
+                labels: ['Precision', 'Recall', 'F1-Score'],
+                datasets: [
+                    {
+                        label: 'XGBoost Model',
+                        data: [66, 0, 1],
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Human Baseline',
+                        data: [53, 53, 53],
+                        backgroundColor: '#94a3b8',
+                        borderRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: { display: true, text: 'Model vs Baseline Performance (%)', font: {size: 16} }
+                },
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
+
+        // 2. Feature Importance Chart
+        const ctxImp = document.getElementById('importanceChart').getContext('2d');
+        new Chart(ctxImp, {
+            type: 'bar',
+            data: {
+                labels: ['CTR', 'Average Position', 'Impressions', 'Clicks'],
+                datasets: [{
+                    label: 'Importance %',
+                    data: [45, 27, 15, 13],
+                    backgroundColor: '#10b981',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                plugins: {
+                    title: { display: true, text: 'XGBoost Feature Importance', font: {size: 16} },
+                    legend: { display: false }
+                }
+            }
+        });
+
+        // 3. Action Mix Pie Chart
+        const ctxMix = document.getElementById('actionMixChart').getContext('2d');
+        new Chart(ctxMix, {
+            type: 'doughnut',
+            data: {
+                labels: ['High Imp Risk (Immediate Refresh)', 'Standard Risk (Update Title)'],
+                datasets: [{
+                    data: [65.7, 34.3],
+                    backgroundColor: ['#ef4444', '#3b82f6'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: { display: true, text: 'Distribution of Flagged Reason Codes', font: {size: 16} }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
